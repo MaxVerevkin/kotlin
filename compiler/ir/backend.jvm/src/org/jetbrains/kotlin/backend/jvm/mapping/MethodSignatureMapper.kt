@@ -227,7 +227,8 @@ class MethodSignatureMapper(private val context: JvmBackendContext, private val 
         function: IrFunction,
         skipGenericSignature: Boolean,
         skipSpecial: Boolean = false,
-        materialized: Boolean = true
+        materialized: Boolean = true,
+        specializationMap: IrSpecializationTypeMap? = null,
     ): JvmMethodGenericSignature {
         if (function is IrLazyFunctionBase &&
             (!function.isFakeOverride || function.parentAsClass.isFromJava()) &&
@@ -262,14 +263,19 @@ class MethodSignatureMapper(private val context: JvmBackendContext, private val 
                     else ->
                         WritingParameterToGenericSignatureMode.REGULAR
                 },
-                type = type,
+                type = specializationMap?.getSpecializedType(type) ?: type,
                 function = function,
                 materialized = parameter.kind == IrParameterKind.Regular && materialized
             )
         }
 
         sw.writeReturnType()
-        mapReturnType(function, sw, materialized)
+        val specializedReturnType = specializationMap?.getSpecializedType(function.returnType)
+        if (specializedReturnType != null) {
+            typeMapper.mapType(specializedReturnType, TypeMappingMode.DEFAULT, sw, materialized)
+        } else {
+            mapReturnType(function, sw, materialized)
+        }
         sw.writeReturnTypeEnd()
 
         val signature = sw.makeJvmMethodSignature(mapFunctionName(function, skipSpecial))
@@ -380,8 +386,21 @@ class MethodSignatureMapper(private val context: JvmBackendContext, private val 
 
         val isInterface = calleeParent.isJvmInterface
         val isSuperCall = expression.superQualifierSymbol != null
+        val isAnnotationMethod = callee.parent.let { it is IrClass && it.isAnnotationClass }
+
+        val specializationMap = IrSpecializationTypeMap(expression, context)
+
+        // TODO this is a dirty hack, do proper stuff
+        if (specializationMap.isSpecialized) {
+            assert(!isInterface) { "specialized call may not be interface call: ${expression.render()}" }
+            assert(!isSuperCall) { "specialized call may not be super call: ${expression.render()}" }
+            assert(!isAnnotationMethod) { "specialized call may not be annotation method: ${expression.render()}" }
+            assert(caller == null || !caller.isBridge()) { "specialized call may not be bridge: ${expression.render()}" }
+            assert(callee.isStatic) { "specialized call must be static: ${expression.render()}" }
+        }
 
         val invokeOpcode = when {
+            specializationMap.isSpecialized -> Opcodes.INVOKEDYNAMIC
             callee.dispatchReceiverParameter == null -> Opcodes.INVOKESTATIC
             isSuperCall -> Opcodes.INVOKESPECIAL
             isInterface && !DescriptorVisibilities.isPrivate(callee.visibility) -> Opcodes.INVOKEINTERFACE
@@ -400,8 +419,32 @@ class MethodSignatureMapper(private val context: JvmBackendContext, private val 
                 mapOverriddenSpecialBuiltinIfNeeded(declaration, isSuperCall)
                     ?: mapSignatureSkipGeneric(declaration)
             }
+        val specializedSignature =
+            if (specializationMap.isSpecialized) {
+                mapSignature(
+                    declaration,
+                    skipGenericSignature = true,
+                    skipSpecial = false,
+                    materialized = true,
+                    specializationMap = specializationMap,
+                )
+            } else {
+                null
+            }
 
-        return IrCallableMethod(owner, invokeOpcode, signature, isInterface, declaration.returnType)
+        return IrCallableMethod(
+            owner,
+            invokeOpcode,
+            specializedSignature ?: signature,
+            if (specializedSignature == null) {
+                null
+            } else {
+                signature
+            },
+            specializationMap,
+            isInterface,
+            specializationMap.getSpecializedType(declaration.returnType) ?: declaration.returnType,
+        )
     }
 
     // TODO: get rid of this (probably via some special lowering)

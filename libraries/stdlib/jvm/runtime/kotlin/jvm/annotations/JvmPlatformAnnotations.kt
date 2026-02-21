@@ -225,3 +225,12 @@ public actual annotation class JvmRecord
     AnnotationTarget.CLASS,
 )
 public actual annotation class JvmExposeBoxed(actual val jvmName: String)
+
+/**
+ * Instructs the compiler to specialize the generic function when the annotated type parameter is a primitive.
+ */
+@Retention(AnnotationRetention.RUNTIME)
+@MustBeDocumented
+@ExperimentalStdlibApi
+@Target(AnnotationTarget.TYPE_PARAMETER)
+public annotation class JvmSpecialize

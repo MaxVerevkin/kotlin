@@ -155,7 +155,7 @@ kotlin {
                         // providing exhaustive list of args here
                         freeCompilerArgs.set(
                             listOfNotNull(
-                                "-Xjdk-release=6",
+                                "-Xjdk-release=8",
                                 "-jvm-default=disable",
                                 "-Xallow-kotlin-package",
                                 "-Xexpect-actual-classes",
@@ -385,6 +385,7 @@ kotlin {
             project.configurations.getByName("jvmMainCompileOnly")
             dependencies {
                 api("org.jetbrains:annotations:13.0")
+                implementation(libs.intellij.asm)
             }
             val jvmSrcDirs = listOfNotNull(
                 "jvm/src",

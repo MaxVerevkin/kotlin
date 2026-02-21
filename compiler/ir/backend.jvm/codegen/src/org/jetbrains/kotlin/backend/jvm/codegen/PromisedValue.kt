@@ -17,10 +17,11 @@ import org.jetbrains.kotlin.ir.declarations.isSingleFieldValueClass
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.symbols.IrTypeParameterSymbol
 import org.jetbrains.kotlin.ir.types.*
+import org.jetbrains.kotlin.ir.util.genericTypeParameterIndex
+import org.jetbrains.kotlin.ir.util.isJvmSpecializedGeneric
 import org.jetbrains.kotlin.ir.util.isNullable
 import org.jetbrains.kotlin.ir.util.isSubtypeOf
 import org.jetbrains.kotlin.ir.util.isTypeParameter
-import org.jetbrains.kotlin.ir.util.parentAsClass
 import org.jetbrains.kotlin.load.kotlin.TypeMappingMode
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.org.objectweb.asm.Label
@@ -33,6 +34,33 @@ abstract class PromisedValue(val codegen: ExpressionCodegen, val type: Type, val
     // If this value is immaterial, construct an object on the top of the stack. This
     // must always be done before generating other values or emitting raw bytecode.
     open fun materializeAt(target: Type, irTarget: IrType, castForReified: Boolean) {
+        val fromTypeIsSpecializedGenericOfThisFunction =
+            irType.asTypeParameterSymbolOrNull?.owner?.parent == codegen.irFunction &&
+                    irType.isJvmSpecializedGeneric
+        val toTypeIsSpecializedGenericOfThisFunction =
+            irTarget.asTypeParameterSymbolOrNull?.owner?.parent == codegen.irFunction &&
+                    irTarget.isJvmSpecializedGeneric
+        if (fromTypeIsSpecializedGenericOfThisFunction && !toTypeIsSpecializedGenericOfThisFunction) {
+            mv.invokestatic(
+                "kotlin/jvm/internal/Intrinsics",
+                "specializedTypeBoxMarker${irType.genericTypeParameterIndex}",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                false
+            )
+            if (target != Type.getObjectType("java/lang/Object")) {
+                mv.checkcast(target)
+            }
+            return
+        } else if (!fromTypeIsSpecializedGenericOfThisFunction && toTypeIsSpecializedGenericOfThisFunction) {
+            mv.invokestatic(
+                "kotlin/jvm/internal/Intrinsics",
+                "specializedTypeUnboxMarker${irType.genericTypeParameterIndex}",
+                "(Ljava/lang/Object;)Ljava/lang/Object;",
+                false
+            )
+            return
+        }
+
         val erasedSourceType = irType.eraseIfTypeParameter()
         val erasedTargetType = irTarget.eraseIfTypeParameter()
 

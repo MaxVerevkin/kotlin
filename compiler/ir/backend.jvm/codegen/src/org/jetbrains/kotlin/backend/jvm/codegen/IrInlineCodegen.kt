@@ -148,6 +148,12 @@ class IrInlineCodegen(
                 else ->
                     ValueKind.GENERAL
             }
+            // TODO: box/unbox markers for specialized types
+            // println("\n- irValueParameter: ${irValueParameter.render()}")
+            // println("- argumentExpression: ${argumentExpression.render()}")
+            // println("- parameterType: $parameterType")
+            // println("- isInlineParameter: $isInlineParameter")
+            // println("- kind: $kind")
 
             val onStack = when (kind) {
                 ValueKind.METHOD_HANDLE_IN_DEFAULT ->

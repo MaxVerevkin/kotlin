@@ -18,6 +18,7 @@ module kotlin.stdlib {
     exports kotlin.io.encoding;
     exports kotlin.jvm;
     exports kotlin.jvm.functions;
+    exports kotlin.jvm.specialization;
     exports kotlin.math;
     exports kotlin.properties;
     exports kotlin.random;

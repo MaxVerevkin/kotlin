@@ -15,8 +15,11 @@ import org.jetbrains.kotlin.ir.expressions.IrAnnotation
 import org.jetbrains.kotlin.ir.expressions.IrGetEnumValue
 import org.jetbrains.kotlin.ir.expressions.IrVararg
 import org.jetbrains.kotlin.ir.symbols.*
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.classifierOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.isArray
+import org.jetbrains.kotlin.ir.types.isPrimitiveType
 import org.jetbrains.kotlin.name.*
 import org.jetbrains.kotlin.resolve.descriptorUtil.module
 import org.jetbrains.kotlin.util.OperatorNameConventions
@@ -363,3 +366,12 @@ fun IrClass.selectSAMOverriddenFunctionOrNull(): IrSimpleFunction? {
 
 fun IrClass.selectSAMOverriddenFunction(): IrSimpleFunction = selectSAMOverriddenFunctionOrNull()
     ?: error("${render()} should have a single abstract method to be a type of function reference")
+
+val IrTypeParameter.isJvmSpecialized: Boolean
+    get() = hasAnnotation(FqName("kotlin.jvm.JvmSpecialize"))
+
+val IrType.isJvmSpecializedGeneric: Boolean
+    get() = (this.classifierOrNull as? IrTypeParameterSymbol)?.owner?.isJvmSpecialized ?: false
+
+val IrType.genericTypeParameterIndex: Int?
+    get() = (this.classifierOrNull as? IrTypeParameterSymbol)?.owner?.index

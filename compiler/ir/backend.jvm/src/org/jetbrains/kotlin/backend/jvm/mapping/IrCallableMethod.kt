@@ -15,11 +15,17 @@ class IrCallableMethod(
     val owner: Type,
     val invokeOpcode: Int,
     val signature: JvmMethodSignature,
+    val specGenericImplSignature: JvmMethodSignature?,
+    val specializationMap: IrSpecializationTypeMap,
     val isInterfaceMethod: Boolean,
     val returnType: IrType,
 ) {
     val asmMethod: Method = signature.asmMethod
 
     override fun toString(): String =
-        "${Printer.OPCODES[invokeOpcode]} $owner.$asmMethod" + (if (isInterfaceMethod) " (itf)" else "")
+        if (specGenericImplSignature != null) {
+            "${Printer.OPCODES[invokeOpcode]} $asmMethod -> $owner.${specGenericImplSignature.asmMethod} (spec)"
+        } else {
+            "${Printer.OPCODES[invokeOpcode]} $owner.$asmMethod" + (if (isInterfaceMethod) " (itf)" else "")
+        }
 }

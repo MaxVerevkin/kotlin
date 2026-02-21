@@ -516,7 +516,7 @@ class ExpressionCodegen(
         val callee = expression.symbol.owner
         require(callee.parent is IrClass) { "Unhandled intrinsic in ExpressionCodegen: ${callee.render()}" }
         val callable = methodSignatureMapper.mapToCallableMethod(expression, irFunction)
-        val callGenerator = getOrCreateCallGenerator(expression, data, callable.signature)
+        val callGenerator = getOrCreateCallGenerator(expression, data, callable)
 
         // Generate LINENUMBER instruction before any stack spilling - otherwise, the spilling will have previous instruction's LINENUMBER
         // See KT-66413.
@@ -733,7 +733,16 @@ class ExpressionCodegen(
             }
         } else if (declaration.isVisibleInLVT) {
             declaration.markLineNumber(startOffset = true)
-            pushDefaultValueOnStack(varType, mv)
+            if (declaration.type.isJvmSpecializedGeneric) {
+                mv.invokestatic(
+                    "kotlin/jvm/internal/Intrinsics",
+                    "specializedTypeDefaultValueMarker${declaration.type.genericTypeParameterIndex!!}",
+                    "()Ljava/lang/Object;",
+                    false
+                )
+            } else {
+                pushDefaultValueOnStack(varType, mv)
+            }
             mv.store(index, varType)
         }
 
@@ -1533,8 +1542,12 @@ class ExpressionCodegen(
     private fun getOrCreateCallGenerator(
         element: IrFunctionAccessExpression,
         data: BlockInfo,
-        signature: JvmMethodSignature
+        callable: IrCallableMethod
     ): IrCallGenerator {
+        if (callable.specializationMap.isSpecialized) {
+            return IrSpecializedCallGenerator(callable.specializationMap)
+        }
+
         // we do not inline into @JvmStatic wrappers to keep bytecode smaller, but for private ones
         // inlining is preferred (compared to the necessity in extra access-method)
         fun IrFunction.isNonPrivateJvmStaticWrapper() =
@@ -1582,7 +1595,7 @@ class ExpressionCodegen(
             this,
             state,
             callee,
-            signature,
+            callable.signature,
             mappings,
             sourceCompiler,
             reifiedTypeInliner,

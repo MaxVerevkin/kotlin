@@ -96,6 +96,9 @@ val IrType.classifierOrNull: IrClassifierSymbol?
         else -> null
     }
 
+val IrType.asTypeParameterSymbolOrNull: IrTypeParameterSymbol?
+    get() = classifierOrNull as? IrTypeParameterSymbol
+
 val IrType.classOrNull: IrClassSymbol?
     get() =
         when (val classifier = classifierOrNull) {
